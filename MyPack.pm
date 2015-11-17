@@ -78,5 +78,5 @@ sub mypack ($template, *@list is copy) is export {
         }
     }
 
-    return pack "{ @new_template }" , @new_list;
+    return pack ~@new_template, @new_list;
 }
