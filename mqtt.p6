@@ -10,16 +10,17 @@ my $keepalive-interval = 60;
 my $messages := Supply.new;
 my $packets  := Supply.new;
 
-$messages.tap: -> [ $topic, $message ] {
-    say "$topic: { $message.decode("utf8-c8") }";
+$messages.tap: {
+    say "{ .<topic> }: { .<message>.decode("utf8-c8") }";
 }
 
-$packets.tap: -> $_ {
+$packets.tap: {
     if (.<type> == 3) {  # published message
         my $topic-length = .<data>.unpack("n");
         my $topic   = .<data>.subbuf(2, $topic-length).decode("utf8-c8");
         my $message = .<data>.subbuf(2 + $topic-length);
-        $messages.emit([ $topic, $message ]);
+        my $retain  = .<retain>;
+        $messages.emit({ :$topic, :$message, :$retain });
     }
 };
 
