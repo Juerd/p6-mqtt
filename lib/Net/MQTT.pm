@@ -105,7 +105,7 @@ multi method publish (Str $topic, Buf $message) {
 }
 
 multi method publish (Str $topic, Str $message) {
-    $!socket.write: mypack "C m/(n/a* a*)", 0x30, $topic, $message.encode;
+    .publish($topic, $message.encode);
 }
 
 multi method retain (Str $topic, Buf $message) {
@@ -113,6 +113,6 @@ multi method retain (Str $topic, Buf $message) {
 }
 
 multi method retain (Str $topic, Str $message) {
-    $!socket.write: mypack "C m/(n/a* a*)", 0x31, $topic, $message.encode;
+    .publish($topic, $message.encode);
 }
 
