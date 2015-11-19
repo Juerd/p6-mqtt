@@ -12,7 +12,7 @@ $m.connect.then: {
 }
 
 $m.messages.tap: {
-    say "{ .<topic> } => { .<message>.decode }";
+    say "{ .<topic> } => { .<message>.decode("utf8-c8") }";
 }
 
 await $m.connection;
