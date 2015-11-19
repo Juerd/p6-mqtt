@@ -33,6 +33,30 @@ submethod BUILD (Str:D :$!server, Int:D :$!port = 1883) {
     };
 }
 
+sub _quotemeta ($str is copy) {
+    $str ~~ s:g[\W+] = "'$/'";
+    return $str;
+}
+
+our sub filter-as-regex ($filter) {
+    return /^ <!before '$'>/ if $filter eq '#';
+    return /^ '/'/           if $filter eq '/#';
+
+    my $regex = '^';
+    my $anchor = True;
+    $regex ~= "<!before '\$'>" if $filter ~~ /^\+/;
+    my @parts = $filter.comb(/ '/#' | '/' | <-[/]>+ /);
+    for @parts {
+        when '/#' { $anchor = False; last }
+        when '/' { $regex ~= '\\/' }
+        when '+' { $regex ~= '<-[/]>*' }
+        default { $regex ~= _quotemeta $_ }
+    }
+    $regex ~= '$' if $anchor;
+
+    return /<$regex>/;
+}
+
 method connect () {
     $!connection = IO::Socket::Async.connect($!server, $!port).then: -> $p {
         if (not $p.status) {
@@ -60,10 +84,6 @@ method connect () {
 method initialize () {
     $!socket.write: mypack "C m/(n/a* C C n n/a*)", 0x10,
         "MQIsdp", 3, 2, $!keepalive-interval, $!client-identifier;
-    $!socket.write: mypack "C m/(C C n/a* C)", 0x82,
-        0, 0, "typing-speed-test.aoeu.eu", 0;
-    $!socket.write: mypack "C m/(C C n/a* C)", 0x82,
-        0, 0, "revspace/#", 0;
 
     my $ping := Supply.interval($!keepalive-interval);
     $ping.tap: {
@@ -117,3 +137,10 @@ multi method retain (Str $topic, Str $message) {
     .publish($topic, $message.encode);
 }
 
+method subscribe (Str $topic) {
+    $!socket.write: mypack "C m/(C C n/a* C)", 0x82,
+        0, 0, $topic, 0;
+
+    my $regex = filter-as-regex($topic);
+    return $!messages.grep: { $_.<topic> ~~ $regex }
+}
