@@ -79,11 +79,12 @@ method _parse () {
     my $multiplier = 1;
     my $length = 0;
     my $d = 0;
-    while ($d == 0 or $d +& 0x80) {
+    {
         return if $offset >= $!buf.elems;
         $d = $!buf[$offset++];
         $length += ($d +& 0x7f) * $multiplier;
         $multiplier *= 128;
+        redo if $d +& 0x80;
     }
     return if $length > $!buf.elems + $offset;
 
