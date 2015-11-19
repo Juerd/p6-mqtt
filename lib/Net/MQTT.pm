@@ -7,19 +7,20 @@ has Int     $.keepalive-interval    is rw = 60;
 has Int     $.maximum-length        is rw = 2097152;  # 2 MB
 has Str     $.client-identifier     is rw = "perl6-$*PID";
 has Str     $.server                is rw;
-has Int     $.port                  is rw = 1883;
+has Int     $.port                  is rw;
 has Supply  $.messages;
 has Supply  $!packets;
 has Buf     $!buf;
 has Promise $.connection;
+has Promise $!connected;
+has Promise $!initialized;
+has IO::Socket::Async $!socket;
 
-submethod BUILD (:$!server, :$!port = 1883) {
-    say $!server;
-    say $!port; 
-
+submethod BUILD (Str:D :$!server, Int:D :$!port = 1883) {
     $!messages .= new;
     $!packets .= new;
     $!buf .= new;
+    $!initialized .= new;
 
     $!packets.tap: {
         if (.<type> == 3) {  # published message
@@ -30,56 +31,63 @@ submethod BUILD (:$!server, :$!port = 1883) {
             $!messages.emit({ :$topic, :$message, :$retain });
         }
     };
+}
 
-    $!connection = IO::Socket::Async.connect($!server, $!port).then( -> $p {
-        return if not $p.status;
+method connect () {
+    $!connection = IO::Socket::Async.connect($!server, $!port).then: -> $p {
+        if (not $p.status) {
+            $!initialized.break;
+            return;
+        }
 
-        my $socket := $p.result;
+        $!socket := $p.result;
+        self.initialize();
 
         react {
-            my $bs := $socket.bytes-supply;
+            my $bs := $!socket.bytes-supply;
 
             whenever $bs -> $received {
                 $!buf ~= $received;
                 self._parse;
             }
-
-            $socket.write: mypack "C m/(n/a* C C n n/a*)", 0x10,
-                "MQIsdp", 3, 2, $!keepalive-interval, $!client-identifier;
-            $socket.write: mypack "C m/(n/a* a*)", 0x30,
-                "hello-world", "Hi there!";
-            $socket.write: mypack "C m/(C C n/a* C)", 0x82,
-                0, 0, "typing-speed-test.aoeu.eu", 0;
-            $socket.write: mypack "C m/(C C n/a* C)", 0x82,
-                0, 0, "revspace/#", 0;
-
-            my $ping := Supply.interval($!keepalive-interval);
-            $ping.tap: {
-                say "Sending keepalive";
-                $socket.write: pack "C x", 0xc0;
-            };
         }
-        $socket.close;
-    });
+        $!socket.close;
+    };
+
+    return $!initialized;
 }
 
-method _parse {
+method initialize () {
+    $!socket.write: mypack "C m/(n/a* C C n n/a*)", 0x10,
+        "MQIsdp", 3, 2, $!keepalive-interval, $!client-identifier;
+    $!socket.write: mypack "C m/(C C n/a* C)", 0x82,
+        0, 0, "typing-speed-test.aoeu.eu", 0;
+    $!socket.write: mypack "C m/(C C n/a* C)", 0x82,
+        0, 0, "revspace/#", 0;
+
+    my $ping := Supply.interval($!keepalive-interval);
+    $ping.tap: {
+        $!socket.write: pack "C x", 0xc0;
+    };
+
+    $!initialized.keep;
+}
+
+method _parse () {
     my $offset = 1;
 
     my $multiplier = 1;
     my $length = 0;
-    my $d;
-    {
+    my $d = 0;
+    while ($d == 0 or $d +& 0x80) {
         return if $offset >= $!buf.elems;
         $d = $!buf[$offset++];
         $length += ($d +& 0x7f) * $multiplier;
         $multiplier *= 128;
-        redo if $d +& 0x80;
     }
     return if $length > $!buf.elems + $offset;
 
     my $first_byte = $!buf[0];
-
     my $packet := hash {
         type   => ($first_byte +& 0xf0) +> 4,
         dup    => ($first_byte +& 0x08) +> 3,
@@ -89,6 +97,22 @@ method _parse {
     };
 
     $!buf .= subbuf($offset + $length);
-
     $!packets.emit($packet);
 }
+
+multi method publish (Str $topic, Buf $message) {
+    $!socket.write: mypack "C m/(n/a* a*)", 0x30, $topic, $message;
+}
+
+multi method publish (Str $topic, Str $message) {
+    $!socket.write: mypack "C m/(n/a* a*)", 0x30, $topic, $message.encode;
+}
+
+multi method retain (Str $topic, Buf $message) {
+    $!socket.write: mypack "C m/(n/a* a*)", 0x31, $topic, $message;
+}
+
+multi method retain (Str $topic, Str $message) {
+    $!socket.write: mypack "C m/(n/a* a*)", 0x31, $topic, $message.encode;
+}
+
