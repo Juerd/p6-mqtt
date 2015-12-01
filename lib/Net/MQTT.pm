@@ -17,9 +17,9 @@ has Promise  $!initialized;
 has IO::Socket::Async $!socket;
 
 submethod BUILD (Str:D :$!server, Int:D :$!port = 1883) {
-    $!messages .= new;
-    $!packets .= new;
-    $!buf .= new;
+    $!messages    .= new;
+    $!packets     .= new;
+    $!buf         .= new;
     $!initialized .= new;
 
     $!packets.Supply.tap: {
@@ -45,12 +45,13 @@ our sub filter-as-regex ($filter) {
     my $regex = '^';
     my $anchor = True;
     $regex ~= "<!before '\$'>" if $filter ~~ /^\+/;
+
     my @parts = $filter.comb(/ '/#' | '/' | <-[/]>+ /);
     for @parts {
         when '/#' { $anchor = False; last }
-        when '/' { $regex ~= '\\/' }
-        when '+' { $regex ~= '<-[/]>*' }
-        default { $regex ~= _quotemeta $_ }
+        when '/'  { $regex ~= '\\/' }
+        when '+'  { $regex ~= '<-[/]>*' }
+        default   { $regex ~= _quotemeta $_ }
     }
     $regex ~= '$' if $anchor;
 
