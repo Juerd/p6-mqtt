@@ -40,7 +40,7 @@ sub _quotemeta ($str is copy) {
 
 our sub filter-as-regex ($filter) {
     return /^ <!before '$'>/ if $filter eq '#';
-    return /^ '/'/           if $filter eq '/#';
+    return /^ '/'          / if $filter eq '/#';
 
     my $regex = '^';
     my $anchor = True;
@@ -143,7 +143,7 @@ method subscribe (Str $topic) returns Supply:D {
         0, 0, $topic, 0;
 
     my $regex = filter-as-regex($topic);
-    return $!messages.Supply.grep: { $_.<topic> ~~ $regex }
+    return $!messages.Supply.grep: { .<topic> ~~ $regex }
 }
 
 method messages () returns Supply:D {
