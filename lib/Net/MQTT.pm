@@ -57,7 +57,7 @@ our sub filter-as-regex ($filter) {
     return /<$regex>/;
 }
 
-method connect () {
+method connect () returns Promise:D {
     $!connection = IO::Socket::Async.connect($!server, $!port).then: -> $p {
         if (not $p.status) {
             $!initialized.break;
@@ -137,7 +137,7 @@ multi method retain (Str $topic, Str $message) {
     .publish($topic, $message.encode);
 }
 
-method subscribe (Str $topic) {
+method subscribe (Str $topic) returns Supply:D {
     $!socket.write: mypack "C m/(C C n/a* C)", 0x82,
         0, 0, $topic, 0;
 
