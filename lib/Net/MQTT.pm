@@ -3,17 +3,17 @@ use Net::MQTT::MyPack;
 
 unit class Net::MQTT;
 
-has Int     $.keepalive-interval    is rw = 60;
-has Int     $.maximum-length        is rw = 2097152;  # 2 MB
-has Str     $.client-identifier     is rw = "perl6";
-has Str     $.server                is rw;
-has Int     $.port                  is rw;
-has Supply  $.messages;
-has Supply  $!packets;
-has Buf     $!buf;
-has Promise $.connection;
-has Promise $!connected;
-has Promise $!initialized;
+has Int      $.keepalive-interval    is rw = 60;
+has Int      $.maximum-length        is rw = 2097152;  # 2 MB
+has Str      $.client-identifier     is rw = "perl6";
+has Str      $.server                is rw;
+has Int      $.port                  is rw;
+has Supplier $!messages;
+has Supplier $!packets;
+has Buf      $!buf;
+has Promise  $.connection;
+has Promise  $!connected;
+has Promise  $!initialized;
 has IO::Socket::Async $!socket;
 
 submethod BUILD (Str:D :$!server, Int:D :$!port = 1883) {
@@ -22,7 +22,7 @@ submethod BUILD (Str:D :$!server, Int:D :$!port = 1883) {
     $!buf .= new;
     $!initialized .= new;
 
-    $!packets.tap: {
+    $!packets.Supply.tap: {
         if (.<type> == 3) {  # published message
             my $topic-length = .<data>.unpack("n");
             my $topic   = .<data>.subbuf(2, $topic-length).decode("utf8-c8");
@@ -68,9 +68,9 @@ method connect () {
         self.initialize();
 
         react {
-            my $bs := $!socket.bytes-supply;
+            my $bytes := $!socket.Supply(:bin);
 
-            whenever $bs -> $received {
+            whenever $bytes -> $received {
                 $!buf ~= $received;
                 self._parse;
             }
@@ -142,7 +142,11 @@ method subscribe (Str $topic) {
         0, 0, $topic, 0;
 
     my $regex = filter-as-regex($topic);
-    return $!messages.grep: { $_.<topic> ~~ $regex }
+    return $!messages.Supply.grep: { $_.<topic> ~~ $regex }
+}
+
+method messages () returns Supply:D {
+    return $!messages.Supply;
 }
 
 =begin pod
