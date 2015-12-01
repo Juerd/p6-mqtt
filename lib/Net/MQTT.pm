@@ -28,7 +28,7 @@ submethod BUILD (Str:D :$!server, Int:D :$!port = 1883) {
             my $topic   = .<data>.subbuf(2, $topic-length).decode("utf8-c8");
             my $message = .<data>.subbuf(2 + $topic-length);
             my $retain  = .<retain>;
-            $!messages.emit({ :$topic, :$message, :$retain });
+            $!messages.emit: { :$topic, :$message, :$retain };
         }
     };
 }
@@ -86,8 +86,7 @@ method initialize () {
     $!socket.write: mypack "C m/(n/a* C C n n/a*)", 0x10,
         "MQIsdp", 3, 2, $!keepalive-interval, $!client-identifier;
 
-    my $ping := Supply.interval($!keepalive-interval);
-    $ping.tap: {
+    Supply.interval( $!keepalive-interval ).tap: {
         $!socket.write: pack "C x", 0xc0;
     };
 
@@ -119,7 +118,8 @@ method _parse () {
     };
 
     $!buf .= subbuf($offset + $length);
-    $!packets.emit($packet);
+
+    $!packets.emit: $packet;
 }
 
 multi method publish (Str $topic, Buf $message) {
@@ -127,7 +127,7 @@ multi method publish (Str $topic, Buf $message) {
 }
 
 multi method publish (Str $topic, Str $message) {
-    .publish($topic, $message.encode);
+    .publish: $topic, $message.encode;
 }
 
 multi method retain (Str $topic, Buf $message) {
@@ -135,7 +135,7 @@ multi method retain (Str $topic, Buf $message) {
 }
 
 multi method retain (Str $topic, Str $message) {
-    .publish($topic, $message.encode);
+    .publish: $topic, $message.encode;
 }
 
 method subscribe (Str $topic) returns Supply:D {
