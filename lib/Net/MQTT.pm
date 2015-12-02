@@ -143,7 +143,7 @@ method subscribe (Str $topic) returns Supply:D {
         0, 0, $topic, 0;
 
     my $regex = filter-as-regex($topic);
-    return $!messages.Supply.grep: { .<topic> ~~ $regex }
+    return $!messages.Supply.grep: { .<topic> ~~ $regex };
 }
 
 method messages () returns Supply:D {
