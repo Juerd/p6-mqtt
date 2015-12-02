@@ -73,7 +73,7 @@ method connect () returns Promise:D {
 
             whenever $bytes -> $received {
                 $!buf ~= $received;
-                self._parse;
+                1 while self._parse;
             }
         }
         $!socket.close;
@@ -106,7 +106,7 @@ method _parse () {
         $multiplier *= 128;
         redo if $d +& 0x80;
     }
-    return if $length > $!buf.elems + $offset;
+    return False if $length > $!buf.elems + $offset;
 
     my $first_byte = $!buf[0];
     my $packet := hash {
@@ -120,6 +120,8 @@ method _parse () {
     $!buf .= subbuf($offset + $length);
 
     $!packets.emit: $packet;
+
+    return True;
 }
 
 multi method publish (Str $topic, Blob $message) {
