@@ -122,7 +122,7 @@ method _parse () {
     $!packets.emit: $packet;
 }
 
-multi method publish (Str $topic, Buf $message) {
+multi method publish (Str $topic, Blob $message) {
     $!socket.write: mypack "C m/(n/a* a*)", 0x30, $topic, $message;
 }
 
@@ -130,7 +130,7 @@ multi method publish (Str $topic, Str $message) {
     .publish: $topic, $message.encode;
 }
 
-multi method retain (Str $topic, Buf $message) {
+multi method retain (Str $topic, Blob $message) {
     $!socket.write: mypack "C m/(n/a* a*)", 0x31, $topic, $message;
 }
 
