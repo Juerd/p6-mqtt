@@ -127,7 +127,7 @@ multi method publish (Str $topic, Blob $message) {
 }
 
 multi method publish (Str $topic, Str $message) {
-    .publish: $topic, $message.encode;
+    self.publish: $topic, $message.encode;
 }
 
 multi method retain (Str $topic, Blob $message) {
@@ -135,7 +135,7 @@ multi method retain (Str $topic, Blob $message) {
 }
 
 multi method retain (Str $topic, Str $message) {
-    .publish: $topic, $message.encode;
+    self.publish: $topic, $message.encode;
 }
 
 method subscribe (Str $topic) returns Supply:D {
