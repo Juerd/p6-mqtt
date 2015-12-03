@@ -7,31 +7,16 @@ has Int      $.keepalive-interval    is rw = 60;
 has Int      $.maximum-length        is rw = 2097152;  # 2 MB
 has Str      $.client-identifier     is rw = "perl6";
 has Str      $.server                is rw;
-has Int      $.port                  is rw;
-has Supplier $!messages;
-has Supplier $!packets;
-has Buf      $!buf;
+has Int      $.port                  is rw = 1883;;
+
+has Supplier $!messages     .= new;
+has Supplier $!packets      .= new;
+has Buf      $!buf          .= new;
+has Promise  $!initialized  .= new;
+
 has Promise  $.connection;
 has Promise  $!connected;
-has Promise  $!initialized;
 has IO::Socket::Async $!socket;
-
-submethod BUILD (Str:D :$!server, Int:D :$!port = 1883) {
-    $!messages    .= new;
-    $!packets     .= new;
-    $!buf         .= new;
-    $!initialized .= new;
-
-    $!packets.Supply.tap: {
-        if (.<type> == 3) {  # published message
-            my $topic-length = .<data>.unpack("n");
-            my $topic   = .<data>.subbuf(2, $topic-length).decode("utf8-c8");
-            my $message = .<data>.subbuf(2 + $topic-length);
-            my $retain  = .<retain>;
-            $!messages.emit: { :$topic, :$message, :$retain };
-        }
-    };
-}
 
 sub _quotemeta ($str is copy) {
     $str ~~ s:g[\W+] = "'$/'";
@@ -89,6 +74,16 @@ method initialize () {
 
     Supply.interval( $!keepalive-interval ).tap: {
         $!socket.write: pack "C x", 0xc0;
+    };
+
+    $!packets.Supply.tap: {
+        if (.<type> == 3) {  # published message
+            my $topic-length = .<data>.unpack("n");
+            my $topic   = .<data>.subbuf(2, $topic-length).decode("utf8-c8");
+            my $message = .<data>.subbuf(2 + $topic-length);
+            my $retain  = .<retain>;
+            $!messages.emit: { :$topic, :$message, :$retain };
+        }
     };
 
     $!initialized.keep;
