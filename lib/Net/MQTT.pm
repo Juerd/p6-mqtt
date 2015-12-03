@@ -79,7 +79,8 @@ method connect () returns Promise:D {
         $!socket.close;
     };
 
-    return $!initialized;
+    await $!initialized;
+    return $!connection;
 }
 
 method initialize () {
@@ -163,16 +164,15 @@ Net::MQTT - Minimal MQTT v3 interface for Perl 6
     use Net::MQTT;
 
     my $m = Net::MQTT.new('test.mosquitto.org');
+    $m.connect;
 
-    $m.connect.then: {
-        $m.subscribe("typing-speed-test.aoeu.eu").tap: {
-            say "Typing test completed at { .<message>.decode("utf8-c8") }";
-        }
-
-        $m.publish("hello-world", "$*PID says hi");
-        sleep 10;
-        $m.publish("hello-world", "$*PID is still here!");
+    $m.subscribe("typing-speed-test.aoeu.eu").tap: {
+        say "Typing test completed at { .<message>.decode("utf8-c8") }";
     }
+
+    $m.publish("hello-world", "$*PID says hi");
+    sleep 10;
+    $m.publish("hello-world", "$*PID is still here!");
 
     await $m.connection;
 
@@ -185,11 +185,7 @@ anything, .connect should be called!
 
 =head2 connect
 
-Attempts to connect to the MQTT broker, returns a Promise that is kept when the
-connection is set up, after which the rest of the methods can be used.
-
-Behind the scenes, another Promise is created for the actual connection, which
-will typically be used with C<await>.
+Attempts to connect to the MQTT broker, returns the C<connection> Promise.
 
 =head2 connection
 
