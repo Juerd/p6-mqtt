@@ -7,7 +7,7 @@ has Int      $.keepalive-interval    is rw = 60;
 has Int      $.maximum-length        is rw = 2097152;  # 2 MB
 has Str      $.client-identifier     is rw = "perl6";
 has Str      $.server                is rw;
-has Int      $.port                  is rw = 1883;;
+has Int      $.port                  is rw = 1883;
 has Supply   $!messages;
 has IO::Socket::Async $!connection;
 
