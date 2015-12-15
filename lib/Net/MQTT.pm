@@ -49,7 +49,7 @@ method connect () {
             my $retain  = .<retain>;
             emit { :$topic, :$message, :$retain };
         }
-    };
+    }
 
     my $initialized = $packets.grep(*.<type> == 2).head(1).Promise;
 
@@ -124,16 +124,12 @@ multi method retain (Str $topic, Str $message) {
 }
 
 method subscribe (Str $topic) returns Supply:D {
-    return supply {
-        $!connection.write: mypack "C m/(C C n/a* C)", 0x82,
-            0, 0, $topic, 0;
+    $!connection.write: mypack "C m/(C C n/a* C)", 0x82,
+        0, 0, $topic, 0;
 
-        my $regex = filter-as-regex($topic);
+    my $regex = filter-as-regex($topic);
 
-        whenever $!messages -> %hash {
-            emit %hash if %hash.<topic> ~~ $regex;
-        }
-    }
+    return $!messages.grep: { .<topic> ~~ $regex };
 }
 
 method messages () returns Supply:D {
