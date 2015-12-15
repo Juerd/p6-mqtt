@@ -8,15 +8,8 @@ has Int      $.maximum-length        is rw = 2097152;  # 2 MB
 has Str      $.client-identifier     is rw = "perl6";
 has Str      $.server                is rw;
 has Int      $.port                  is rw = 1883;;
-
-has Supplier $!messages     .= new;
-has Supplier $!packets      .= new;
-has Buf      $!buf          .= new;
-has Promise  $!initialized  .= new;
-
-has Promise  $.connection;
-has Promise  $!connected;
-has IO::Socket::Async $!socket;
+has Supply   $!messages;
+has IO::Socket::Async $.connection;
 
 sub _quotemeta ($str is copy) {
     $str ~~ s:g[\W+] = "'$/'";
@@ -43,85 +36,79 @@ our sub filter-as-regex ($filter) {
     return /<$regex>/;
 }
 
-method connect () returns Promise:D {
-    $!connection = IO::Socket::Async.connect($!server, $!port).then: -> $p {
-        if (not $p.status) {
-            $!initialized.break;
-            return;
-        }
+method connect () {
+    $!connection = await IO::Socket::Async.connect($!server, $!port);
+    my $packets = self!incoming-packets($!connection.Supply(:bin)).share;
 
-        $!socket := $p.result;
-        self.initialize();
-
-        react {
-            my $bytes := $!socket.Supply(:bin);
-
-            whenever $bytes -> $received {
-                $!buf ~= $received;
-                1 while self._parse;
-            }
-        }
-        $!socket.close;
-    };
-
-    await $!initialized;
-    return $!connection;
-}
-
-method initialize () {
-    $!socket.write: mypack "C m/(n/a* C C n n/a*)", 0x10,
-        "MQIsdp", 3, 2, $!keepalive-interval, $!client-identifier;
-
-    Supply.interval( $!keepalive-interval ).tap: {
-        $!socket.write: pack "C x", 0xc0;
-    };
-
-    $!packets.Supply.tap: {
-        if (.<type> == 3) {  # published message
+    $!messages = supply {
+        whenever $packets.grep(*.<type> == 3) {
             my $topic-length = .<data>.unpack("n");
-            my $topic   = .<data>.subbuf(2, $topic-length).decode("utf8-c8");
+            my $topic   = .<data>.subbuf(2, $topic-length)
+                            .decode("utf8-c8");
             my $message = .<data>.subbuf(2 + $topic-length);
             my $retain  = .<retain>;
-            $!messages.emit: { :$topic, :$message, :$retain };
+            emit { :$topic, :$message, :$retain };
         }
     };
 
-    $!initialized.keep;
+    my $initialized = $packets.grep(*.<type> == 2).head(1).Promise;
+
+    $!connection.write: mypack "C m/(n/a* C C n n/a*)", 0x10,
+        "MQIsdp", 3, 2, $!keepalive-interval, $!client-identifier;
+
+    await $initialized;
+
+    Supply.interval( $!keepalive-interval ).tap: {
+        $!connection.write: pack "C x", 0xc0;
+    };
+
+    return True;
 }
 
-method _parse () {
+method !parse (Buf $buf is rw) {
     my $offset = 1;
 
     my $multiplier = 1;
     my $length = 0;
     my $d = 0;
     {
-        return if $offset >= $!buf.elems;
-        $d = $!buf[$offset++];
+        return if $offset >= $buf.elems;
+        $d = $buf[$offset++];
         $length += ($d +& 0x7f) * $multiplier;
         $multiplier *= 128;
         redo if $d +& 0x80;
     }
-    return False if $length > $!buf.elems + $offset;
+    return False if $length > $buf.elems + $offset;
 
-    my $first_byte = $!buf[0];
-    my $packet := hash {
+    my $first_byte = $buf[0];
+    my %packet := {
         type   => ($first_byte +& 0xf0) +> 4,
         dup    => ($first_byte +& 0x08) +> 3,
         qos    => ($first_byte +& 0x06) +> 1,
         retain => ($first_byte +& 0x01),
-        data   => $!buf.subbuf($offset, $length);
+        data   => $buf.subbuf($offset, $length);
     };
 
-    $!buf .= subbuf($offset + $length);
+    $buf .= subbuf($offset + $length);
 
-    $!packets.emit: $packet;
+    return %packet;
+}
 
-    return True;
+method !incoming-packets (Supply $binary) {
+    my Buf $buf .= new;
+    return supply {
+        whenever $binary -> $received {
+            $buf ~= $received;
+            while self!parse($buf) -> %hash {
+                emit %hash;
+            }
+        }
+    }
+
 }
 
 multi method publish (Str $topic, Blob $message) {
-    $!socket.write: mypack "C m/(n/a* a*)", 0x30, $topic, $message;
+    $!connection.write: mypack "C m/(n/a* a*)", 0x30, $topic, $message;
 }
 
 multi method publish (Str $topic, Str $message) {
@@ -129,7 +116,7 @@ multi method publish (Str $topic, Str $message) {
 }
 
 multi method retain (Str $topic, Blob $message) {
-    $!socket.write: mypack "C m/(n/a* a*)", 0x31, $topic, $message;
+    $!connection.write: mypack "C m/(n/a* a*)", 0x31, $topic, $message;
 }
 
 multi method retain (Str $topic, Str $message) {
@@ -137,11 +124,16 @@ multi method retain (Str $topic, Str $message) {
 }
 
 method subscribe (Str $topic) returns Supply:D {
-    $!socket.write: mypack "C m/(C C n/a* C)", 0x82,
-        0, 0, $topic, 0;
+    return supply {
+        $!connection.write: mypack "C m/(C C n/a* C)", 0x82,
+            0, 0, $topic, 0;
 
-    my $regex = filter-as-regex($topic);
-    return $!messages.Supply.grep: { .<topic> ~~ $regex };
+        my $regex = filter-as-regex($topic);
+
+        whenever $!messages -> %hash {
+            emit %hash if %hash.<topic> ~~ $regex;
+        }
+    }
 }
 
 method messages () returns Supply:D {
