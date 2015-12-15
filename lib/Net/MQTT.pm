@@ -9,7 +9,7 @@ has Str      $.client-identifier     is rw = "perl6";
 has Str      $.server                is rw;
 has Int      $.port                  is rw = 1883;;
 has Supply   $!messages;
-has IO::Socket::Async $.connection;
+has IO::Socket::Async $!connection;
 
 sub _quotemeta ($str is copy) {
     $str ~~ s:g[\W+] = "'$/'";
@@ -140,11 +140,15 @@ method messages () returns Supply:D {
     return $!messages.Supply;
 }
 
+method connection () returns Promise:D {
+    ...
+}
+
 =begin pod
 
 =head1 NAME
 
-Net::MQTT - Minimal MQTT v3 interface for Perl 6
+Net::MQTT - Minimal MQTT v3 client interface for Perl 6
 
 =head1 SYNOPSIS
 
@@ -153,15 +157,17 @@ Net::MQTT - Minimal MQTT v3 interface for Perl 6
     my $m = Net::MQTT.new('test.mosquitto.org');
     $m.connect;
 
-    $m.subscribe("typing-speed-test.aoeu.eu").tap: {
-        say "Typing test completed at { .<message>.decode("utf8-c8") }";
-    }
-
-    $m.publish("hello-world", "$*PID says hi");
-    sleep 10;
     $m.publish("hello-world", "$*PID is still here!");
 
-    await $m.connection;
+    react {
+        whenever $m.subscribe("typing-speed-test.aoeu.eu") {
+            say "Typing test completed at { .<message>.decode("utf8-c8") }";
+        }
+
+        whenever Supply.interval(10) {
+            $m.publish("hello-world", "$*PID is still here!");
+        }
+    }
 
 =head1 METHODS
 
@@ -172,11 +178,12 @@ anything, .connect should be called!
 
 =head2 connect
 
-Attempts to connect to the MQTT broker, returns the C<connection> Promise.
+Attempts to connect to the MQTT broker, and waits for confirmation from the
+broker before returning.
 
 =head2 connection
 
-Returns the Promise described above, so you can C<await> it in your main thread.
+Returns a Promise that isn't kept until the connection ends.
 
 =head2 publish(Str $topic, Buf|Str $message)
 
