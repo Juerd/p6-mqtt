@@ -37,32 +37,34 @@ our sub filter-as-regex ($filter) {
 }
 
 method connect () {
-    $!connection = await IO::Socket::Async.connect($!server, $!port);
-    my $packets = self!incoming-packets($!connection.Supply(:bin)).share;
+    return start {
+        $!connection = await IO::Socket::Async.connect($!server, $!port);
+        my $packets = self!incoming-packets($!connection.Supply(:bin)).share;
 
-    $!messages = supply {
-        whenever $packets.grep(*.<type> == 3) {
-            my $topic-length = .<data>.unpack("n");
-            my $topic   = .<data>.subbuf(2, $topic-length)
-                            .decode("utf8-c8");
-            my $message = .<data>.subbuf(2 + $topic-length);
-            my $retain  = .<retain>;
-            emit { :$topic, :$message, :$retain };
+        $!messages = supply {
+            whenever $packets.grep(*.<type> == 3) {
+                my $topic-length = .<data>.unpack("n");
+                my $topic   = .<data>.subbuf(2, $topic-length)
+                                .decode("utf8-c8");
+                my $message = .<data>.subbuf(2 + $topic-length);
+                my $retain  = .<retain>;
+                emit { :$topic, :$message, :$retain };
+            }
         }
+
+        my $initialized = $packets.grep(*.<type> == 2).head(1).Promise;
+
+        $!connection.write: mypack "C m/(n/a* C C n n/a*)", 0x10,
+            "MQIsdp", 3, 2, $!keepalive-interval, $!client-identifier;
+
+        await $initialized;
+
+        Supply.interval( $!keepalive-interval ).tap: {
+            $!connection.write: pack "C x", 0xc0;
+        };
+
+        True;
     }
-
-    my $initialized = $packets.grep(*.<type> == 2).head(1).Promise;
-
-    $!connection.write: mypack "C m/(n/a* C C n n/a*)", 0x10,
-        "MQIsdp", 3, 2, $!keepalive-interval, $!client-identifier;
-
-    await $initialized;
-
-    Supply.interval( $!keepalive-interval ).tap: {
-        $!connection.write: pack "C x", 0xc0;
-    };
-
-    return True;
 }
 
 method !parse (Buf $buf is rw) {
@@ -151,7 +153,7 @@ Net::MQTT - Minimal MQTT v3 client interface for Perl 6
     use Net::MQTT;
 
     my $m = Net::MQTT.new('test.mosquitto.org');
-    $m.connect;
+    await $m.connect;
 
     $m.publish("hello-world", "$*PID is still here!");
 
@@ -174,8 +176,8 @@ anything, .connect should be called!
 
 =head2 connect
 
-Attempts to connect to the MQTT broker, and waits for confirmation from the
-broker before returning.
+Attempts to connect to the MQTT broker, and returns a Promise that will be kept
+after connection confirmation from the broker.
 
 =head2 connection
 

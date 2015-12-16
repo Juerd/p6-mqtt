@@ -5,7 +5,7 @@ use Net::MQTT;
 
 my $m = Net::MQTT.new: server => 'test.mosquitto.org';
 
-$m.connect;
+await $m.connect;
 
 $m.publish: "hello-world", "$*PID says hi";
 
