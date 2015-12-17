@@ -1,9 +1,9 @@
 #!perl6
 use v6;
 use lib 'lib';
-use Net::MQTT;
+use MQTT::Client;
 
-my $m = Net::MQTT.new: server => 'test.mosquitto.org';
+my $m = MQTT::Client.new: server => 'test.mosquitto.org';
 
 await $m.connect;
 

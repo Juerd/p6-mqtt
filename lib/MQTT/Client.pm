@@ -1,7 +1,7 @@
 use v6;
-use Net::MQTT::MyPack;
+use MQTT::Client::MyPack;
 
-unit class Net::MQTT;
+unit class MQTT::Client;
 
 has Int      $.keepalive-interval    is rw = 60;
 has Int      $.maximum-length        is rw = 2097152;  # 2 MB
@@ -146,13 +146,13 @@ method connection () returns Promise:D {
 
 =head1 NAME
 
-Net::MQTT - Minimal MQTT v3 client interface for Perl 6
+MQTT::Client - Minimal MQTT v3 client interface for Perl 6
 
 =head1 SYNOPSIS
 
-    use Net::MQTT;
+    use MQTT::Client;
 
-    my $m = Net::MQTT.new('test.mosquitto.org');
+    my $m = MQTT::Client.new('test.mosquitto.org');
     await $m.connect;
 
     $m.publish("hello-world", "$*PID is still here!");
@@ -202,14 +202,14 @@ buffer), which in most cases you will need to C<.decode> before you can use it.
 
 =head1 FUNCTIONS
 
-=head2 Net::MQTT::filter_as_regex(topic_filter)
+=head2 MQTT::Client::filter_as_regex(topic_filter)
 
 Given a valid MQTT topic filter, returns the corresponding regular expression.
 
 =head1 NOT YET IMPLEMENTED
 
 The following features that are present in Net::MQTT::Simple for Perl 5, have
-not yet been implemented in Net::MQTT for Perl 6:
+not yet been implemented in MQTT::Client for Perl 6:
 
 =over
 

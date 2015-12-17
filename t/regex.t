@@ -1,8 +1,8 @@
 use v6;
 use Test;
-use Net::MQTT;
+use MQTT::Client;
 
-my &far := &Net::MQTT::filter-as-regex;
+my &far := &MQTT::Client::filter-as-regex;
 
 # Boring spec tests, the "non normative comments" from the MQTT 3.1.1 draft
 

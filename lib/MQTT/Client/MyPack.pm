@@ -1,4 +1,4 @@
-unit module Net::MQTT::MyPack;
+unit module Client::MQTT::MyPack;
 
 my grammar template {
     token basic_unit { <[a..zA..Z]> [ \d+ | '*' ]? }
