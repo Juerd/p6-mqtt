@@ -1,7 +1,8 @@
 use v6;
-use MQTT::Client::MyPack;
 
 unit class MQTT::Client;
+
+use MQTT::Client::MyPack;
 
 has Int      $.keepalive-interval    is rw = 60;
 has Int      $.maximum-length        is rw = 2097152;  # 2 MB
@@ -38,6 +39,8 @@ our sub filter-as-regex ($filter) {
 
 method connect () {
     return start {
+        use experimental :pack;
+
         $!connection = await IO::Socket::Async.connect($!server, $!port);
         my $packets = self!incoming-packets($!connection.Supply(:bin)).share;
 

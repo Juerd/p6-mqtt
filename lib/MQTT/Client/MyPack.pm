@@ -1,5 +1,7 @@
 unit module Client::MQTT::MyPack;
 
+use experimental :pack;
+
 my grammar template {
     token basic_unit { <[a..zA..Z]> [ \d+ | '*' ]? }
     token composed_unit { '(' <TOP> ')' }
