@@ -12,12 +12,12 @@ has Int      $.port                  is rw = 1883;
 has Supply   $!messages;
 has IO::Socket::Async $!connection;
 
-sub _quotemeta ($str is copy) {
-    $str ~~ s:g[\W+] = "'$/'";
-    return $str;
-}
-
 our sub filter-as-regex ($filter) {
+    my sub quotemeta ($str is copy) {
+        $str ~~ s:g[\W+] = "'$/'";
+        return $str;
+    }
+
     return /^ <!before '$'>/ if $filter eq '#';
     return /^ '/'          / if $filter eq '/#';
 
@@ -30,7 +30,7 @@ our sub filter-as-regex ($filter) {
         when '/#' { $anchor = False; last }
         when '/'  { $regex ~= '\\/' }
         when '+'  { $regex ~= '<-[/]>*' }
-        default   { $regex ~= _quotemeta $_ }
+        default   { $regex ~= quotemeta $_ }
     }
     $regex ~= '$' if $anchor;
 
