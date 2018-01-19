@@ -84,7 +84,7 @@ method !parse (Buf $buf is rw) {
         $multiplier *= 128;
     } while $d +& 0x80;
 
-    return False if $length > $buf.elems + $offset;
+    return False if $length + $offset > $buf.elems;
 
     my $first_byte = $buf[0];
     my %packet := {
