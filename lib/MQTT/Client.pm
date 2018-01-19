@@ -95,7 +95,7 @@ method !parse (Buf $buf is rw) {
         data   => $buf.subbuf($offset, $length);
     };
 
-    $buf .= subbuf($offset + $length);
+    $buf.=subbuf($offset + $length);
 
     return %packet;
 }
@@ -104,7 +104,7 @@ method !incoming-packets (Supply $binary) {
     my Buf $buf .= new;
     return supply {
         whenever $binary -> $received {
-            $buf ~= $received;
+            $buf.push: $received;
             while self!parse($buf) -> %hash {
                 emit %hash;
             }
