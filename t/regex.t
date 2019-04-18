@@ -98,7 +98,7 @@ my @all_filters;
 for @match {
     my $topic = .key;
     my @should_match = @( .value );
-    my @should_not_match = @all_filters.grep: { $_ ne any @should_match };
+    my @should_not_match = @all_filters.grep: none @should_match;
 
     for @should_match -> $filter {
         my $regex = far( $filter );
@@ -138,8 +138,7 @@ pattern_test("foo/foo/baz/#", "foo/foo/baz/bar")
 pattern_test("/#", "////foo///bar")
 ];
 
-sub pattern_test {
-    my ($pattern, $match) = @_;
+sub pattern_test($pattern, $match) {
     my $regex = far($pattern);
     like($match, $regex, "mosquitto: '$match' should match '$pattern'");
 }
